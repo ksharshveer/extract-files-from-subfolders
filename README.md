@@ -4,8 +4,8 @@
 ## Description:
 
 Easily extract all unique files from all sub folders within a chosen folder and move them to chosen folder's root directory.
-When run, it creates log file named logs.txt in working directory to write program execution details. You can open it to see what it did, or errors that might have occured in there.
-It also creates a folder ....restore in working directory. Please do not delete this folder as it is required for proper restoration of files.
+When run, it creates log file named "logs.txt" in working directory to write program execution details. You can open it to see what it did, or errors that might have occured in there.
+It also creates a folder "....restore" in working directory. Please do not delete this folder as it is required for proper restoration of files.
 
 
 ## Safety Precautions:
@@ -24,10 +24,11 @@ It also creates a folder ....restore in working directory. Please do not delete 
 ## Steps to Restore Files:
 
 1. Execute ExtractFilesFromSubfolders.py file using Python.
-2. Result: Files should have been restored now. Restore folder "....restore" should have been deleted, and log file should have been updated(created if it does not exist).
+2. Result: Files should have been restored now. Restore folder "....restore" should have been deleted, and log file "logs.txt" should have been updated(created if it does not exist).
 
 
 ## What's not done:
 
-Only one file that has several names will be extrated to working directory. Rest of the similar named files will not be moved. 
+Only one file which is encountered first during execution, that has several exact same names will be extracted to working directory. Rest of the same named files will not be moved. 
 Non empty subfolders will not be deleted. 
+Created log file "logs.txt" is never deleted.

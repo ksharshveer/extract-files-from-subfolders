@@ -1,153 +1,228 @@
-import os
+import os, shutil
+from pathlib import Path
 
-klist = []
-vlist = []
-dirslist = []
+# To store program execution details
+logs = [] 
 
-restore_py_file = "restore.py"
 
-# ################## SET UP SOURCE AND DESTINATION FOLDER ##################
-# example: source_folder = "D:\dummy\folder"    # note: backslashes are single and none at end
-# source_folder = "Z:\Learning"
-destination_folder = source_folder
+def get_str_of_backslash_escaped_path_object(path):
+  """Returns a string of file/folder path replacing each backslash with 2 backslashes"""
+  return str(Path(path)).replace("\\", "\\\\")
 
-# ################## LOCATION TO STORE RECOVERY FILES(leave unchanged) ##################
-restore_folder = "....restore"
-default_restore_folder = os.path.join(destination_folder, restore_folder)
 
-# ################## READ FILE ##################
 def read_list_from_file(filename):
+  """Returns a list of lines read given a file"""
+  filename = get_str_of_backslash_escaped_path_object(filename)
   mylist = []
-  try:
-    my_file = open(filename, "r")
-    mylist = my_file.read().split()
-    my_file.close
-  except Exception as e:
-    print(e)
+
+  my_file = open(filename, "r")
+  mylist = my_file.read().split("\n")
+  mylist.pop()
+  my_file.close
+
   return mylist
 
-# ################## OVERWRITE FILE ##################
-def overrite_list_in_file(my_list, filename):
-  try:
-    my_file = open(filename, "w")
-    for item in my_list:
-      my_file.write(str(item)+ "\n")
-    my_file.close
-  except Exception as e:
-    print(e)
 
-# ################## FIND DEEP DIRECTORIES ##################
-def find_long_dirs(src, des):
+def write_list_in_file(my_list, filename, mode="a+"):
+  """Appends/Overwrites list items as lines given a list, file, and 
+  write mode (use a+ to append, or w+ to overwrite)"""
+  filename = get_str_of_backslash_escaped_path_object(filename)
+
+  my_file = open(filename, mode)
+
+  for item in my_list:
+    my_file.write(str(item)+ "\n")
+
+  my_file.close
+
+ 
+def find_long_dirs(src, des, dirslist):
+  """Returns list of chained """
+  src = Path(src)
+  des = Path(des)
   directory_items = os.listdir(src)
-  no_dir = True
+  is_dir_empty = True
+
   for item in directory_items:
-    if (os.path.isdir(os.path.join(src, item))):
-      find_long_dirs(os.path.join(src, item), des)
-      no_dir = False
-  if (no_dir):
+
+    if (os.path.isdir(src.joinpath(item))):
+      find_long_dirs(src.joinpath(item), des, dirslist)
+      is_dir_empty = False
+
+  if (is_dir_empty):
     dirslist.append(src)
 
-# ################## MOVE FILES OUT OF FOLDERS ##################
-def extract_files(src, des):
+  return dirslist
+
+
+def extract_files(src, des, current_dir):
+  """Moves files from given source folder to given destination folder"""
+  src = Path(src)
+  des = Path(des)
+  current_dir = Path(current_dir)
   directory_items = os.listdir(src)
+
   for item in directory_items:
-    if (os.path.isfile(os.path.join(src, item))):
-      klist.append(os.path.join(destination_folder, item))
-      vlist.append(os.path.join(src, item))
+    joined_src = src.joinpath(item)
+    joined_des = des.joinpath(item)
+
+    if (os.path.isfile(joined_src)):
+      klist.append(current_dir.joinpath(item))
+      vlist.append(joined_src)
+
       try:
-        os.rename(os.path.join(src, item), os.path.join(des, item))
+        os.rename(joined_src, joined_des)
+        logs.append("Moved "+str(joined_src)+" to "+str(joined_des))
+
       except Exception as e:
         klist.pop
         vlist.pop
-        print(e)
-    if (os.path.isdir(os.path.join(src, item))):
-      extract_files(os.path.join(src, item), des)
+        logs.append("Failed to move "+str(joined_src)+" to "+str(joined_des))
 
-# ################## DELETE EMPTY DIRECTORIES ##################
+    if (os.path.isdir(joined_src)):
+      extract_files(joined_src, des, current_dir)
+
+
 def delete_dirs(my_list):
+  """Deletes directories from a given list of directories if no files exist in them"""
   for item in my_list:
-    if (len(os.listdir(item)) == 0):
+    path_item = Path(item)
+
+    if (len(os.listdir(path_item)) == 0):
+    
       try:
-        os.removedirs(item)
+        os.removedirs(path_item)
+        logs.append("Deleting "+str(path_item))
+    
       except Exception as e:
-        print(e)
+        logs.append(str(e))
+    
+    else:
+      logs.append("Could not delete folder "+str(item)+" because it has file(s)")
+
+
+def create_dirs(my_list):
+  """Creates directories from a list of paths of directories"""
+  for item in my_list:
+    path_item = Path(item)
+
+    try:
+      if (not (os.path.isdir(path_item))):
+        os.makedirs(path_item)
+        logs.append("Creating "+str(path_item))
+    
+    except Exception as e:
+      logs.append(str(e))
+
+
+def restore_files():
+  for item1, item2 in zip(klist, vlist):
+
+    try:
+      os.rename(get_str_of_backslash_escaped_path_object(item1), get_str_of_backslash_escaped_path_object(item2))
+      logs.append("Moved "+str(item1)+" to "+str(item2))
+
+    except Exception as e:
+      logs.append("Failed to move "+str(item1)+" to "+str(item2)+str(e))
+
 
 if __name__ == '__main__':
   
+  # lists to contain information of files moved and deleted folders
+  klist = []
+  vlist = []
+  dirslist = []
+
+  # Restore folder and file name
+  restore_folder = "....restore"
+  restore_py_file = "restore.py"
+  
+  # Set current folder as source for program execution, all files
+  #  in this folder/subfolders will be extracted to this folder
+  current_file_path = Path(os.path.realpath(__file__))
+
+  source_folder = current_file_path.parent
+  logs.append("\nSource folder : "+str(source_folder))
+
+  destination_folder = source_folder
+  logs.append("Destination folder : "+str(destination_folder))
+
+  # Set restore folder location
+  default_restore_folder = source_folder.joinpath(restore_folder)
+  logs.append("Restore folder : "+str(default_restore_folder))
+
+  # proper filenames to be used for reading/writing files
+  chained_directories_list_file = get_str_of_backslash_escaped_path_object(default_restore_folder.joinpath("dirslist.txt"))
+  keys_list_file = get_str_of_backslash_escaped_path_object(default_restore_folder.joinpath("klist.txt"))
+  values_list_file = get_str_of_backslash_escaped_path_object(default_restore_folder.joinpath("vlist.txt"))
+  logs_file = get_str_of_backslash_escaped_path_object(source_folder.joinpath("logs.txt"))
+
   try:
+
     if (os.path.isdir(default_restore_folder)):
-      print("Restore folder found. Skipping execution\nDelete folder "+
-      restore_folder+" at "+default_restore_folder+" and try again")
-    else:
-      find_long_dirs(source_folder, destination_folder)
-      extract_files(source_folder, destination_folder)
-      delete_dirs(dirslist)
+      logs.append("\nRestore folder found. Starting restoration...")
       
-      os.mkdir(default_restore_folder)
-      overrite_list_in_file(klist, os.path.join(default_restore_folder, "klist.txt"))
-      overrite_list_in_file(vlist, os.path.join(default_restore_folder, "vlist.txt"))
-      overrite_list_in_file(dirslist, os.path.join(default_restore_folder, "dirslist.txt"))
-
       try:
-        restore = open(os.path.join(default_restore_folder, restore_py_file), "w")
-        restore.write("import os" + "\n\n" +
+        logs.append("\nReading data from restore files...")
 
-        "klist = []" + "\n" +
-        "vlist = []" + "\n" +
-        "dirslist = []" + "\n\n" +
+        dirslist = read_list_from_file(chained_directories_list_file)
+        klist = read_list_from_file(keys_list_file)
+        vlist = read_list_from_file(values_list_file)
 
-        "# ################## SET UP SOURCE AND DESTINATION FOLDER ##################" + "\n" +
-        "source_folder = \"" + str(source_folder) + "\"\n" +
-        "destination_folder = \"" + str(destination_folder) + "\"\n\n" +
+        if ((len(dirslist) == 0) or (len(klist) == 0) or (len(vlist) == 0)):
+          raise Exception("\nExpected at lease one item in restoration file(s), but found"+
+          "\nItems in "+chained_directories_list_file+" : "+len(dirslist)+
+          "\nItems in "+keys_list_file+" : "+len(klist)+
+          "\nItems in "+values_list_file+" : "+len(vlist))
 
-        "default_restore_folder = \""+ str(default_restore_folder) +"\"\n\n"
+        logs.append("Data has been read from restore files.")
 
-        "# ################## READ FILE ##################" + "\n" +
-        "def read_list_from_file(filename):" + "\n" +
-        "  mylist = []" + "\n" +
-        "  try:" + "\n" +
-        "    my_file = open(filename, \""+"r"+"\")" + "\n" +
-        "    mylist = my_file.read().split()" + "\n" +
-        "    my_file.close" + "\n" +
-        "  except Exception:" + "\n" +
-        "    print(\"something went wrong reading \" + filename)" + "\n" +
-        "  return mylist" + "\n\n" +
-
-        "# ################## CREATE EMPTY DIRECTORIES ##################" + "\n" +
-        "def create_dirs(my_list):" + "\n" +
-        "  for item in my_list:" + "\n" +
-        "    try:" + "\n" +
-        "      if (not (os.path.isdir(item))):" + "\n" +
-        "        os.makedirs(item)" + "\n" +
-        "    except Exception:" + "\n" +
-        "      print(\"something went wrong creating \" + item)" + "\n\n" +
-
-        "# ################## RESTORE FILES ##################" + "\n" +
-        "def restore_files():" + "\n" +
-        "  for item1, item2 in zip(klist, vlist):" + "\n" +
-        "    try:" + "\n" +
-        "      os.rename(item1, item2)" + "\n" +
-        "    except Exception:" + "\n" +
-        "      print(\"something went wrong restoring \" + item2 + \" to \" + item1 + \" place\")" + "\n\n" +
-
-        "if __name__ == '__main__':" + "\n\n" +
-          
-        "  dirslist = read_list_from_file(os.path.join(default_restore_folder, \"dirslist.txt\"))" + "\n" +
-        "  klist = read_list_from_file(os.path.join(default_restore_folder, \"klist.txt\"))" + "\n" +
-        "  vlist = read_list_from_file(os.path.join(default_restore_folder, \"vlist.txt\"))" + "\n\n" +
-
-        "  if (len(dirslist) != 0) :" + "\n" +
-        "    create_dirs(dirslist)" + "\n" +
-        "    if ((len(klist) != 0) and (len(vlist) != 0)):" + "\n" +
-        "      restore_files()" + "\n\n" +
-        "  print(\"\\nFinished!\")"
-        )
-        restore.close
       except Exception as e:
-        print("something went wrong writing restore file\n"+e)
-        
-      print("\nYou can restore your files by running " + restore_py_file +
-      " at location " + default_restore_folder + "\n\nFinished!")
+        halt_msg = "Halting execution, insufficient restoration data."
+        logs.append(halt_msg+str(e))
+        raise Exception(halt_msg,e)
+
+      
+      logs.append("\nCreating directories for files restoration...")
+      create_dirs(dirslist)
+      logs.append("Directories created.")
+      
+      logs.append("\nMoving files for restoration...")
+      restore_files()
+      logs.append("Files are now restored.")
+
+      logs.append("\nDeleting restore folder...")
+      shutil.rmtree(default_restore_folder)
+      logs.append("Done.")
+
+    else:
+
+      logs.append("Scanning directories...")
+      dirslist = find_long_dirs(source_folder, destination_folder, dirslist)
+
+      logs.append("Scanning directories complete.\n\nExtracting files...")
+      extract_files(source_folder, destination_folder, source_folder)
+
+      logs.append("Files extraction complete.\n\nDeleting empty remaining directories...")
+      delete_dirs(dirslist)
+
+      logs.append("Empty directories deletion complete.\nCreating restore files")
+      
+      try:
+        os.makedirs((default_restore_folder))
+
+      except Exception as e:
+        logs.append(str(e))
+
+      write_list_in_file(dirslist, chained_directories_list_file, "w+")
+      write_list_in_file(klist, keys_list_file, "w+")
+      write_list_in_file(vlist, values_list_file, "w+")
+
+      logs.append("Restore files created. Do not delete or move restore files/folder and program file")
+      logs.append("\nYou can restore your files by executing the program again.")
       
   except Exception as e:
-    print("Operation failed.\n"+e)
+    logs.append("Severe error.\n"+str(e))
+
+  finally:
+    write_list_in_file(logs,logs_file)

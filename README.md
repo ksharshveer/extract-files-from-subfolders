@@ -10,6 +10,7 @@ It also creates a folder "....restore" in working directory. Please do not delet
 ## Safety Precautions:
 * If the data is critical, it should be backed up before using this program.
 * If you are modifying the code, remember that the program calls shutil.rmtree(default_restore_folder) only once throughout the whole porgram to delete restore folder after restoration attempt. So, make sure that the `default_restore_folder` does not point to anything you don't want getting deleted.
+* Do not use in folders with python `.py` files in them, say a folder like `venv` or `.venv`. Doing so will likely cause circular imports, and the script will not work!
 
 ## Steps to Extract Files: 
 1. Put extract.py file in a folder where you want to extract subfolder files out to this folder. 
